@@ -28,6 +28,14 @@ class BusMock final : public hal::IBus {
      */
     void failAfter(int n) { failAfter_ = n; }
 
+    /**
+     * @brief Make selected bits of a register clear themselves after every write
+     *        (emulates self-clearing bits such as SW_RESET).
+     * @param reg  Register address.
+     * @param mask Bits that read back as zero after a write.
+     */
+    void setAutoClear(std::uint8_t reg, std::uint8_t mask) { autoClear_[reg] = mask; }
+
     hal::Status read(std::uint8_t reg, std::span<std::uint8_t> out) override
     {
         ++readCalls;
@@ -45,6 +53,9 @@ class BusMock final : public hal::IBus {
             return st;
         }
         std::memcpy(&regs[reg], data.data(), data.size());
+        for (std::size_t i = 0; i < data.size(); ++i) {
+            regs[reg + i] &= static_cast<std::uint8_t>(~autoClear_[reg + i]);
+        }
         return hal::Status::Ok;
     }
 
@@ -63,6 +74,7 @@ class BusMock final : public hal::IBus {
         return hal::Status::Ok;
     }
 
+    std::array<std::uint8_t, kRegCount> autoClear_{};
     int failAfter_ = -1;
 };
 

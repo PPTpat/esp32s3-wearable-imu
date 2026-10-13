@@ -1,0 +1,15 @@
+{
+    "idf.currentSetup": "G:/programy/ESP/S/",
+    "idf.openOcdConfigs": [
+        "board/esp32s3-builtin.cfg"
+    ],
+    "idf.customExtraVars": {
+        "IDF_TARGET": "esp32s3"
+    },
+    "clangd.path": "G:\\programy\\ESP\\Espressif\\tools\\esp-clang\\esp-19.1.2_20250312\\esp-clang\\bin\\clangd.exe",
+    "clangd.arguments": [
+      "--background-index",
+      "--query-driver=**",
+      "--compile-commands-dir=c:\\Users\\user\\Desktop\\projekty\\esp32s3-wearable-imu\\build"
+    ]
+}

@@ -15,11 +15,23 @@ FetchContent_MakeAvailable(unity)
 
 set(ROOT ${CMAKE_CURRENT_LIST_DIR}/../..)
 
+# --- HAL bus mock ---
 add_executable(test_bus_mock test_bus_mock.cpp)
 target_include_directories(test_bus_mock PRIVATE
     ${ROOT}/components/hal_port/include
     ${ROOT}/test/mocks)
 target_link_libraries(test_bus_mock PRIVATE unity)
 
+# --- LSM6DSOX driver ---
+add_executable(test_lsm6dsox
+    test_lsm6dsox.cpp
+    ${ROOT}/components/lsm6dsox/src/lsm6dsox.cpp)
+target_include_directories(test_lsm6dsox PRIVATE
+    ${ROOT}/components/hal_port/include
+    ${ROOT}/components/lsm6dsox/include
+    ${ROOT}/test/mocks)
+target_link_libraries(test_lsm6dsox PRIVATE unity)
+
 enable_testing()
 add_test(NAME bus_mock COMMAND test_bus_mock)
+add_test(NAME lsm6dsox COMMAND test_lsm6dsox)
