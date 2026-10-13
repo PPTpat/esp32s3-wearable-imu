@@ -1,0 +1,31 @@
+# ESP-IDF
+build/
+sdkconfig
+sdkconfig.old
+managed_components/
+dependencies.lock
+
+# Host tests
+test/host/build/
+cmake-build-*/
+
+# Python (analiza, skrypty klienta)
+__pycache__/
+*.pyc
+.venv/
+.ipynb_checkpoints/
+
+# Dane lokalne (zostaw tylko małe próbki w data/samples/)
+data/raw/
+*.bin
+!firmware-releases/*.bin
+
+# Edytory / system
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+.cache/
+compile_commands.json
+.DS_Store
+*.log
