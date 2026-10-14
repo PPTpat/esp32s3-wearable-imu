@@ -1,5 +1,5 @@
 {
-    "idf.currentSetup": "G:/programy/ESP/S/",
+    "idf.currentSetup": "D:/ESP-IDF/Espressif/framework/",
     "idf.openOcdConfigs": [
         "board/esp32s3-builtin.cfg"
     ],
