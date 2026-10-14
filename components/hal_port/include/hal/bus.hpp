@@ -13,10 +13,12 @@
 namespace hal {
 
 /** @brief Result of a HAL operation. */
-enum class Status : std::int8_t {
-    Ok = 0,      ///< Operation succeeded.
-    ErrBus = -1, ///< Transport-level failure (NACK, timeout, CRC...).
-    ErrArg = -2, ///< Invalid argument (empty buffer, address out of range).
+enum class [[nodiscard]] Status : std::int8_t {
+    Ok = 0,          ///< Operation succeeded.
+    ErrBus = -1,     ///< Transport-level failure (NACK, timeout, CRC...).
+    ErrArg = -2,     ///< Invalid argument (empty buffer, address out of range).
+    ErrTimeout = -3, ///< Device did not reach the expected state in time.
+    ErrDevice = -4,  ///< Wrong or missing device (e.g. unexpected WHO_AM_I).
 };
 
 /**
