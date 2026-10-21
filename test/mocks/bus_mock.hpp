@@ -36,6 +36,17 @@ class BusMock final : public hal::IBus {
      */
     void setAutoClear(std::uint8_t reg, std::uint8_t mask) { autoClear_[reg] = mask; }
 
+    /**
+     * @brief Emulate a device that is busy after a write to @p reg: the next @p count calls
+     *        fail with ErrBus (one-shot, e.g. a sensor rebooting after SW_RESET).
+     */
+    void failAfterWrite(std::uint8_t reg, unsigned count)
+    {
+        busyReg_ = reg;
+        busyCount_ = count;
+        busyArmed_ = true;
+    }
+
     hal::Status read(std::uint8_t reg, std::span<std::uint8_t> out) override
     {
         ++readCalls;
@@ -56,6 +67,10 @@ class BusMock final : public hal::IBus {
         for (std::size_t i = 0; i < data.size(); ++i) {
             regs[reg + i] &= static_cast<std::uint8_t>(~autoClear_[reg + i]);
         }
+        if (busyArmed_ && reg == busyReg_) {
+            busyArmed_ = false;
+            failNext_ = busyCount_;
+        }
         return hal::Status::Ok;
     }
 
@@ -64,6 +79,10 @@ class BusMock final : public hal::IBus {
     {
         if (len == 0 || static_cast<std::size_t>(reg) + len > kRegCount) {
             return hal::Status::ErrArg;
+        }
+        if (failNext_ > 0) {
+            --failNext_;
+            return hal::Status::ErrBus;
         }
         if (failAfter_ == 0) {
             return hal::Status::ErrBus;
@@ -76,6 +95,10 @@ class BusMock final : public hal::IBus {
 
     std::array<std::uint8_t, kRegCount> autoClear_{};
     int failAfter_ = -1;
+    unsigned failNext_ = 0;
+    unsigned busyCount_ = 0;
+    std::uint8_t busyReg_ = 0;
+    bool busyArmed_ = false;
 };
 
 } // namespace mocks

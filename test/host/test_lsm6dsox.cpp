@@ -37,6 +37,44 @@ static void test_init_times_out_when_reset_never_finishes()
     TEST_ASSERT_EQUAL(hal::Status::ErrTimeout, d.init());
 }
 
+static unsigned gDelayCalls = 0;
+static void fakeDelay(std::uint32_t) { ++gDelayCalls; }
+
+static void test_init_survives_nack_while_device_reboots()
+{
+    gDelayCalls = 0;
+    mock.failAfterWrite(reg::CTRL3_C, 2); // device NACKs twice right after SW_RESET
+    Driver d(mock, fakeDelay);
+    TEST_ASSERT_EQUAL(hal::Status::Ok, d.init());
+    TEST_ASSERT_TRUE(d.failedStep() == InitStep::Done);
+    TEST_ASSERT_EQUAL_UINT(3, gDelayCalls); // two failed polls, then the successful one
+}
+
+static void test_init_reports_step_of_failure()
+{
+    {
+        Driver d(mock);
+        mock.failAfter(0);
+        TEST_ASSERT_EQUAL(hal::Status::ErrBus, d.init());
+        TEST_ASSERT_TRUE(d.failedStep() == InitStep::WhoAmI);
+    }
+    setUp();
+    {
+        Driver d(mock);
+        mock.failAfter(1); // WHO_AM_I read passes, the reset write fails
+        TEST_ASSERT_EQUAL(hal::Status::ErrBus, d.init());
+        TEST_ASSERT_TRUE(d.failedStep() == InitStep::ResetWrite);
+    }
+}
+
+static void test_init_reports_last_bus_error_if_reset_never_settles()
+{
+    mock.failAfterWrite(reg::CTRL3_C, 1000);
+    Driver d(mock);
+    TEST_ASSERT_EQUAL(hal::Status::ErrBus, d.init());
+    TEST_ASSERT_TRUE(d.failedStep() == InitStep::ResetPoll);
+}
+
 static void test_configure_writes_odr_and_range()
 {
     Driver d(mock);
@@ -125,6 +163,9 @@ int main()
     RUN_TEST(test_init_ok_sets_bdu_and_auto_increment);
     RUN_TEST(test_init_rejects_wrong_who_am_i);
     RUN_TEST(test_init_times_out_when_reset_never_finishes);
+    RUN_TEST(test_init_survives_nack_while_device_reboots);
+    RUN_TEST(test_init_reports_step_of_failure);
+    RUN_TEST(test_init_reports_last_bus_error_if_reset_never_settles);
     RUN_TEST(test_configure_writes_odr_and_range);
     RUN_TEST(test_sensitivity_follows_range);
     RUN_TEST(test_configure_fifo_encodes_registers);

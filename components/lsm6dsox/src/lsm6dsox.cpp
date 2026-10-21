@@ -7,6 +7,7 @@ namespace lsm6dsox {
 namespace {
 
 constexpr unsigned kResetPollAttempts = 100;
+constexpr std::uint32_t kResetPollDelayMs = 1;
 constexpr std::uint16_t kMaxWatermark = 511;
 constexpr std::size_t kFifoWordSize = 7;
 
@@ -43,6 +44,7 @@ FifoTag decodeTag(std::uint8_t raw)
 
 hal::Status Driver::init()
 {
+    step_ = InitStep::WhoAmI;
     std::uint8_t id = 0;
     if (const auto st = bus_.readU8(reg::WHO_AM_I, id); st != hal::Status::Ok) {
         return st;
@@ -51,24 +53,36 @@ hal::Status Driver::init()
         return hal::Status::ErrDevice;
     }
 
+    step_ = InitStep::ResetWrite;
     if (const auto st = bus_.writeU8(reg::CTRL3_C, ctrl3_c::SW_RESET); st != hal::Status::Ok) {
         return st;
     }
 
-    // SW_RESET clears itself when the reset is done; poll with a bounded loop.
-    std::uint8_t ctrl3 = ctrl3_c::SW_RESET;
-    for (unsigned i = 0; i < kResetPollAttempts && (ctrl3 & ctrl3_c::SW_RESET) != 0; ++i) {
-        if (const auto st = bus_.readU8(reg::CTRL3_C, ctrl3); st != hal::Status::Ok) {
-            return st;
+    // SW_RESET clears itself when the reset is done. The sensor can NACK while it reboots,
+    // so a failed read is not fatal: keep polling and report the last result if it never settles.
+    step_ = InitStep::ResetPoll;
+    hal::Status last = hal::Status::ErrTimeout;
+    bool done = false;
+    for (unsigned i = 0; i < kResetPollAttempts && !done; ++i) {
+        if (delay_ != nullptr) {
+            delay_(kResetPollDelayMs);
         }
+        std::uint8_t ctrl3 = ctrl3_c::SW_RESET;
+        last = bus_.readU8(reg::CTRL3_C, ctrl3);
+        done = (last == hal::Status::Ok) && ((ctrl3 & ctrl3_c::SW_RESET) == 0);
     }
-    if ((ctrl3 & ctrl3_c::SW_RESET) != 0) {
-        return hal::Status::ErrTimeout;
+    if (!done) {
+        return last == hal::Status::Ok ? hal::Status::ErrTimeout : last;
     }
 
     // BDU: output registers update only after both bytes were read.
     // IF_INC: address auto-increment for burst reads.
-    return bus_.writeU8(reg::CTRL3_C, u8(ctrl3_c::BDU | ctrl3_c::IF_INC));
+    step_ = InitStep::Finalize;
+    const auto st = bus_.writeU8(reg::CTRL3_C, u8(ctrl3_c::BDU | ctrl3_c::IF_INC));
+    if (st == hal::Status::Ok) {
+        step_ = InitStep::Done;
+    }
+    return st;
 }
 
 hal::Status Driver::configure(const Config &cfg)

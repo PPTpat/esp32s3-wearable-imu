@@ -11,5 +11,7 @@
       "--background-index",
       "--query-driver=**",
       "--compile-commands-dir=c:\\Users\\user\\Desktop\\projekty\\esp32s3-wearable-imu\\build"
-    ]
+    ],
+    "idf.flashType": "UART",
+    "idf.port": "COM6"
 }

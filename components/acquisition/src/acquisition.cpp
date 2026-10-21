@@ -14,6 +14,7 @@ constexpr TickType_t kIdleTimeoutTicks = pdMS_TO_TICKS(1000);
 void IRAM_ATTR Acquisition::isr(void *arg)
 {
     auto *self = static_cast<Acquisition *>(arg);
+    self->interrupts_.store(self->interrupts_.load(std::memory_order_relaxed) + 1U, std::memory_order_relaxed);
     BaseType_t woken = pdFALSE;
     vTaskNotifyGiveFromISR(self->task_, &woken);
     portYIELD_FROM_ISR(woken);
@@ -102,6 +103,7 @@ void Acquisition::drainFifo()
 Stats Acquisition::stats() const
 {
     Stats s;
+    s.interrupts = interrupts_.load(std::memory_order_relaxed);
     s.samples = samples_.load(std::memory_order_relaxed);
     s.queueDrops = queueDrops_.load(std::memory_order_relaxed);
     s.fifoOverruns = fifoOverruns_.load(std::memory_order_relaxed);

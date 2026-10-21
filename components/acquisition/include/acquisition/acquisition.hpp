@@ -38,6 +38,7 @@ struct Config {
 /** @brief Runtime counters. */
 struct Stats {
     std::uint32_t samples = 0;             ///< Samples pushed to the queue.
+    std::uint32_t interrupts = 0;          ///< INT1 edges seen by the ISR (0 = pin not wired).
     std::uint32_t queueDrops = 0;          ///< Samples lost because the queue was full.
     std::uint32_t fifoOverruns = 0;        ///< FIFO overrun flag observed (sensor lost data).
     std::uint32_t busErrors = 0;           ///< Failed I2C transactions.
@@ -74,6 +75,7 @@ class Acquisition {
     SampleAssembler assembler_;
     TaskHandle_t task_ = nullptr;
 
+    std::atomic<std::uint32_t> interrupts_{0}; ///< Written only by the ISR (no read-modify-write).
     std::atomic<std::uint32_t> samples_{0};
     std::atomic<std::uint32_t> queueDrops_{0};
     std::atomic<std::uint32_t> fifoOverruns_{0};

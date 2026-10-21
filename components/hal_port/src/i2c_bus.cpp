@@ -19,6 +19,12 @@ Status I2cBus::mapError(esp_err_t err)
     }
 }
 
+Status I2cBus::record(esp_err_t err) const
+{
+    lastError_ = err;
+    return mapError(err);
+}
+
 Status I2cBus::init(const Config &cfg)
 {
     if (cfg.sdaPin < 0 || cfg.sclPin < 0 || cfg.address == 0 || bus_ != nullptr) {
@@ -53,7 +59,7 @@ Status I2cBus::read(std::uint8_t reg, std::span<std::uint8_t> out)
     if (dev_ == nullptr || out.empty()) {
         return Status::ErrArg;
     }
-    return mapError(i2c_master_transmit_receive(dev_, &reg, 1, out.data(), out.size(), timeoutMs_));
+    return record(i2c_master_transmit_receive(dev_, &reg, 1, out.data(), out.size(), timeoutMs_));
 }
 
 Status I2cBus::write(std::uint8_t reg, std::span<const std::uint8_t> data)
@@ -64,7 +70,15 @@ Status I2cBus::write(std::uint8_t reg, std::span<const std::uint8_t> data)
     std::array<std::uint8_t, kMaxWriteBytes + 1> frame{};
     frame[0] = reg;
     std::memcpy(&frame[1], data.data(), data.size());
-    return mapError(i2c_master_transmit(dev_, frame.data(), data.size() + 1, timeoutMs_));
+    return record(i2c_master_transmit(dev_, frame.data(), data.size() + 1, timeoutMs_));
+}
+
+Status I2cBus::probe(std::uint8_t address) const
+{
+    if (bus_ == nullptr) {
+        return Status::ErrArg;
+    }
+    return record(i2c_master_probe(bus_, address, timeoutMs_));
 }
 
 } // namespace hal
