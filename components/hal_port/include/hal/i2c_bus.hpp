@@ -37,12 +37,23 @@ class I2cBus final : public IBus {
     Status read(std::uint8_t reg, std::span<std::uint8_t> out) override;
     Status write(std::uint8_t reg, std::span<const std::uint8_t> data) override;
 
+    /**
+     * @brief Check whether any device acknowledges @p address (wiring diagnostics).
+     * @return Ok if a device answered, ErrBus if nobody did, ErrArg before init().
+     */
+    Status probe(std::uint8_t address) const;
+
+    /** @brief Raw ESP-IDF result of the most recent transaction (diagnostics only). */
+    esp_err_t lastError() const { return lastError_; }
+
   private:
     static Status mapError(esp_err_t err);
+    Status record(esp_err_t err) const;
 
     i2c_master_bus_handle_t bus_ = nullptr;
     i2c_master_dev_handle_t dev_ = nullptr;
     int timeoutMs_ = 20;
+    mutable esp_err_t lastError_ = ESP_OK;
 };
 
 } // namespace hal

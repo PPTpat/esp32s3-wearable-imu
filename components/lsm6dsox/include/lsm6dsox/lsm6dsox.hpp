@@ -71,17 +71,40 @@ struct FifoWord {
     std::array<std::int16_t, 3> xyz{}; ///< Raw X, Y, Z (little-endian from the device).
 };
 
+/** @brief Blocking delay provided by the platform (e.g. wraps vTaskDelay). */
+using DelayFn = void (*)(std::uint32_t ms);
+
+/** @brief Step of Driver::init(); on failure tells where it stopped. */
+enum class InitStep : std::uint8_t {
+    WhoAmI = 0,     ///< Reading WHO_AM_I.
+    ResetWrite = 1, ///< Writing SW_RESET.
+    ResetPoll = 2,  ///< Waiting for the reset to finish.
+    Finalize = 3,   ///< Writing BDU / IF_INC.
+    Done = 4,       ///< init() succeeded.
+};
+
 /** @brief LSM6DSOX driver. Does not own the bus, never allocates, never throws. */
 class Driver {
   public:
-    /** @param bus Register bus connected to the sensor; must outlive the driver. */
-    explicit Driver(hal::IBus &bus) : bus_(bus) {}
+    /**
+     * @param bus   Register bus connected to the sensor; must outlive the driver.
+     * @param delay Optional delay used while waiting for the sensor to reboot after reset.
+     *              Without it the reset is polled back-to-back.
+     */
+    explicit Driver(hal::IBus &bus, DelayFn delay = nullptr) : bus_(bus), delay_(delay) {}
 
     /**
      * @brief Verify the device, reset it and enable BDU and register auto-increment.
+     *
+     * The sensor may NACK for a short time while it reboots after SW_RESET, so bus
+     * errors during the reset poll are retried; only the last one is reported.
+     *
      * @return Ok, ErrDevice (wrong WHO_AM_I), ErrTimeout (reset did not finish) or ErrBus.
      */
     hal::Status init();
+
+    /** @brief Last step reached by init() (InitStep::Done after success). */
+    InitStep failedStep() const { return step_; }
 
     /** @brief Set ODR and full scale of both sensors. */
     hal::Status configure(const Config &cfg);
@@ -106,6 +129,8 @@ class Driver {
 
   private:
     hal::IBus &bus_;
+    DelayFn delay_ = nullptr;
+    InitStep step_ = InitStep::WhoAmI;
     AccelRange accelRange_ = AccelRange::G4;
     GyroRange gyroRange_ = GyroRange::Dps500;
 };

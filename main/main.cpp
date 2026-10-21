@@ -6,6 +6,7 @@
 
 #include "acquisition/acquisition.hpp"
 #include "ble_service/ble_service.hpp"
+#include "driver/gpio.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -27,8 +28,14 @@ static_assert(lsm6dsox::Config{}.accelOdr == lsm6dsox::Odr::Hz104 &&
               "kOdrHz must match the default sensor configuration");
 
 // Static storage: no heap allocation in the data path.
+/** @brief Blocking delay for the sensor driver. */
+void delayMs(std::uint32_t ms)
+{
+    vTaskDelay(pdMS_TO_TICKS(ms));
+}
+
 hal::I2cBus gBus;
-lsm6dsox::Driver gImu(gBus);
+lsm6dsox::Driver gImu(gBus, delayMs);
 acquisition::SampleQueue gQueue;
 acquisition::Acquisition gAcq(gImu, gQueue);
 ble_service::BleService gBle(gQueue); // the only consumer of gQueue
@@ -39,6 +46,55 @@ ble_service::BleService gBle(gQueue); // the only consumer of gQueue
     ESP_LOGE(kTag, "fatal: %s", what);
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
+
+/**
+ * @brief Measure how reliably the sensor ACKs: 20 probes, 10 ms apart.
+ *
+ * 20/20 means the bus is healthy; anything between 1 and 19 points to a loose
+ * contact; 0 means nothing is listening at all.
+ */
+void measureBusHealth(std::uint8_t address)
+{
+    constexpr unsigned kProbes = 20;
+    unsigned acks = 0;
+    for (unsigned i = 0; i < kProbes; ++i) {
+        if (gBus.probe(address) == hal::Status::Ok) {
+            ++acks;
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+    ESP_LOGW(kTag, "probe 0x%02X: ack %u/%u (last result: %s)", static_cast<unsigned>(address), acks, kProbes,
+             esp_err_to_name(gBus.lastError()));
+}
+
+/** @brief Explain a failed sensor init: status codes, WHO_AM_I and every I2C address that answers. */
+void diagnoseImu(hal::Status initStatus)
+{
+    ESP_LOGE(kTag, "imu init failed, status=%d (-1 bus/NACK, -3 timeout, -4 wrong WHO_AM_I), step=%d "
+                   "(0 WHO_AM_I, 1 reset write, 2 reset poll, 3 finalize)",
+             static_cast<int>(initStatus), static_cast<int>(gImu.failedStep()));
+
+    std::uint8_t id = 0;
+    const auto rd = gBus.readU8(lsm6dsox::reg::WHO_AM_I, id);
+    if (rd == hal::Status::Ok) {
+        ESP_LOGE(kTag, "WHO_AM_I = 0x%02X (expected 0x%02X)", static_cast<unsigned>(id),
+                 static_cast<unsigned>(lsm6dsox::kWhoAmIValue));
+    } else {
+        // A failed read leaves garbage in the buffer, so no value is printed.
+        ESP_LOGE(kTag, "WHO_AM_I read failed (esp_err=%s)", esp_err_to_name(gBus.lastError()));
+    }
+
+    unsigned found = 0;
+    for (std::uint8_t addr = 0x08; addr <= 0x77; ++addr) {
+        if (gBus.probe(addr) == hal::Status::Ok) {
+            ESP_LOGW(kTag, "I2C device answers at 0x%02X", static_cast<unsigned>(addr));
+            ++found;
+        }
+    }
+    if (found == 0) {
+        ESP_LOGE(kTag, "no I2C device answers: check power, SDA/SCL, solder joints");
     }
 }
 
@@ -71,7 +127,21 @@ extern "C" void app_main(void)
     if (gBus.init(busCfg) != hal::Status::Ok) {
         fatal("I2C init failed");
     }
-    if (gImu.init() != hal::Status::Ok) {
+    measureBusHealth(busCfg.address);
+
+    // A flaky contact can make a single attempt fail, so retry before giving up.
+    hal::Status initStatus = hal::Status::ErrBus;
+    for (int attempt = 1; attempt <= 5; ++attempt) {
+        initStatus = gImu.init();
+        if (initStatus == hal::Status::Ok) {
+            break;
+        }
+        ESP_LOGW(kTag, "imu init attempt %d failed (status=%d, step=%d, esp_err=%s)", attempt,
+                 static_cast<int>(initStatus), static_cast<int>(gImu.failedStep()), esp_err_to_name(gBus.lastError()));
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    if (initStatus != hal::Status::Ok) {
+        diagnoseImu(initStatus);
         fatal("LSM6DSOX not found (check wiring, address, pull-ups)");
     }
 
@@ -100,9 +170,9 @@ extern "C" void app_main(void)
         const auto a = gAcq.stats();
         const auto b = gBle.stats();
         ESP_LOGI(kTag,
-                 "acq: smp=%" PRIu32 " drops=%" PRIu32 " ovr=%" PRIu32 " bus_err=%" PRIu32 " stack_free=%" PRIu32
+                 "acq: smp=%" PRIu32 " irq=%" PRIu32 " drops=%" PRIu32 " ovr=%" PRIu32 " bus_err=%" PRIu32 " stack_free=%" PRIu32
                  "B | ble: conn=%d stream=%d mtu=%u frames=%" PRIu32 " notify_err=%" PRIu32 " lost=%" PRIu32,
-                 a.samples, a.queueDrops, a.fifoOverruns, a.busErrors, a.stackHighWaterBytes,
+                 a.samples, a.interrupts, a.queueDrops, a.fifoOverruns, a.busErrors, a.stackHighWaterBytes,
                  static_cast<int>(b.connected), static_cast<int>(b.streaming), static_cast<unsigned>(b.mtu),
                  b.framesSent, b.notifyErrors, b.samplesLost);
     }
