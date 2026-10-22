@@ -2,6 +2,7 @@
  * @file main.cpp
  * @brief Firmware entry point: IMU acquisition streamed over BLE.
  */
+#include <array>
 #include <cinttypes>
 
 #include "acquisition/acquisition.hpp"
@@ -67,6 +68,40 @@ void measureBusHealth(std::uint8_t address)
     }
     ESP_LOGW(kTag, "probe 0x%02X: ack %u/%u (last result: %s)", static_cast<unsigned>(address), acks, kProbes,
              esp_err_to_name(gBus.lastError()));
+}
+
+#ifdef CONFIG_IMU_USE_INT1
+constexpr std::uint8_t kExpectedInt1Ctrl = 0x08; // FIFO threshold routed to INT1
+#else
+constexpr std::uint8_t kExpectedInt1Ctrl = 0x00; // polling mode: nothing routed to INT1
+#endif
+
+/** @brief Read back the registers the driver wrote; expected values assume the default configuration. */
+void logSensorRegisters()
+{
+    struct Item {
+        const char *name;
+        std::uint8_t reg;
+        std::uint8_t expected;
+    };
+    const std::array<Item, 7> items{{
+        {"CTRL1_XL", lsm6dsox::reg::CTRL1_XL, 0x48},   // 104 Hz, 4 g
+        {"CTRL2_G", lsm6dsox::reg::CTRL2_G, 0x44},     // 104 Hz, 500 dps
+        {"FIFO_CTRL1", lsm6dsox::reg::FIFO_CTRL1, 0x20}, // watermark 32 (low byte)
+        {"FIFO_CTRL2", lsm6dsox::reg::FIFO_CTRL2, 0x00},
+        {"FIFO_CTRL3", lsm6dsox::reg::FIFO_CTRL3, 0x44}, // gyro and accel batched at 104 Hz
+        {"FIFO_CTRL4", lsm6dsox::reg::FIFO_CTRL4, 0x06}, // continuous mode
+        {"INT1_CTRL", lsm6dsox::reg::INT1_CTRL, kExpectedInt1Ctrl},
+    }};
+    for (const auto &item : items) {
+        std::uint8_t value = 0;
+        if (gBus.readU8(item.reg, value) == hal::Status::Ok) {
+            ESP_LOGW(kTag, "%-10s = 0x%02X (expected 0x%02X)%s", item.name, static_cast<unsigned>(value),
+                     static_cast<unsigned>(item.expected), value == item.expected ? "" : "  <-- MISMATCH");
+        } else {
+            ESP_LOGW(kTag, "%-10s read failed", item.name);
+        }
+    }
 }
 
 /** @brief Explain a failed sensor init: status codes, WHO_AM_I and every I2C address that answers. */
@@ -147,12 +182,21 @@ extern "C" void app_main(void)
 
     lsm6dsox::FifoConfig fifo;
     fifo.watermark = 32;
+#ifndef CONFIG_IMU_USE_INT1
+    fifo.routeWatermarkToInt1 = false;
+#endif
     if (gImu.configureFifo(fifo) != hal::Status::Ok || gImu.configure(lsm6dsox::Config{}) != hal::Status::Ok) {
         fatal("sensor configuration failed");
     }
 
+    logSensorRegisters();
+
     acquisition::Config acqCfg;
+#ifdef CONFIG_IMU_USE_INT1
     acqCfg.intPin = static_cast<gpio_num_t>(CONFIG_IMU_INT1_GPIO);
+#else
+    acqCfg.pollPeriodMs = CONFIG_IMU_POLL_PERIOD_MS;
+#endif
     if (gAcq.start(acqCfg) != ESP_OK) {
         fatal("acquisition start failed");
     }
@@ -168,6 +212,8 @@ extern "C" void app_main(void)
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(2000));
         const auto a = gAcq.stats();
+        ESP_LOGI(kTag, "int1 pin=%d | last drain: unread=%u watermark=%d", a.int1Level,
+                 static_cast<unsigned>(a.lastUnread), static_cast<int>(a.lastWatermark));
         const auto b = gBle.stats();
         ESP_LOGI(kTag,
                  "acq: smp=%" PRIu32 " irq=%" PRIu32 " drops=%" PRIu32 " ovr=%" PRIu32 " bus_err=%" PRIu32 " stack_free=%" PRIu32
