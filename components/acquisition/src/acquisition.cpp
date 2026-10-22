@@ -1,5 +1,7 @@
 #include "acquisition/acquisition.hpp"
 
+#include <cinttypes>
+
 #include "esp_attr.h"
 #include "esp_log.h"
 
@@ -7,7 +9,6 @@ namespace acquisition {
 
 namespace {
 constexpr const char *kTag = "acq";
-constexpr TickType_t kIdleTimeoutTicks = pdMS_TO_TICKS(1000);
 } // namespace
 
 // Keep the ISR minimal: it only wakes the task. All bus traffic happens in task context.
@@ -27,12 +28,20 @@ void Acquisition::taskEntry(void *arg)
 
 esp_err_t Acquisition::start(const Config &cfg)
 {
-    if (cfg.intPin == GPIO_NUM_NC || task_ != nullptr) {
+    if (task_ != nullptr || cfg.pollPeriodMs == 0) {
         return ESP_ERR_INVALID_ARG;
     }
+    idleTicks_ = pdMS_TO_TICKS(cfg.pollPeriodMs);
+
+    intPin_ = cfg.intPin;
 
     if (xTaskCreate(taskEntry, "acq", cfg.taskStackBytes, this, cfg.taskPriority, &task_) != pdPASS) {
         return ESP_ERR_NO_MEM;
+    }
+
+    if (cfg.intPin == GPIO_NUM_NC) {
+        ESP_LOGI(kTag, "started in polling mode, every %" PRIu32 " ms", cfg.pollPeriodMs);
+        return ESP_OK;
     }
 
     gpio_config_t io{};
@@ -63,8 +72,8 @@ esp_err_t Acquisition::start(const Config &cfg)
 void Acquisition::run()
 {
     for (;;) {
-        // Also wake up on timeout so a missed edge cannot stall acquisition forever.
-        ulTaskNotifyTake(pdTRUE, kIdleTimeoutTicks);
+        // With INT1 this timeout is a safety net against a missed edge; without INT1 it is the polling period.
+        ulTaskNotifyTake(pdTRUE, idleTicks_);
         drainFifo();
     }
 }
@@ -76,6 +85,8 @@ void Acquisition::drainFifo()
         busErrors_.fetch_add(1, std::memory_order_relaxed);
         return;
     }
+    lastUnread_.store(status.unread, std::memory_order_relaxed);
+    lastWatermark_.store(status.watermark, std::memory_order_relaxed);
     if (status.overrun) {
         fifoOverruns_.fetch_add(1, std::memory_order_relaxed);
         assembler_.reset(); // the stream has a hole: do not pair words across it
@@ -109,6 +120,9 @@ Stats Acquisition::stats() const
     s.fifoOverruns = fifoOverruns_.load(std::memory_order_relaxed);
     s.busErrors = busErrors_.load(std::memory_order_relaxed);
     s.unpairedWords = unpaired_.load(std::memory_order_relaxed);
+    s.lastUnread = lastUnread_.load(std::memory_order_relaxed);
+    s.lastWatermark = lastWatermark_.load(std::memory_order_relaxed);
+    s.int1Level = intPin_ != GPIO_NUM_NC ? gpio_get_level(intPin_) : -1;
     s.stackHighWaterBytes = task_ != nullptr ? static_cast<std::uint32_t>(uxTaskGetStackHighWaterMark(task_)) : 0;
     return s;
 }
