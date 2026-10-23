@@ -7,9 +7,8 @@ CONFIG_COMPILER_STACK_CHECK_MODE_NORM=y
 CONFIG_COMPILER_CXX_EXCEPTIONS=n
 CONFIG_COMPILER_CXX_RTTI=n
 
-# BLE (NimBLE, peripheral only)
+# BLE (NimBLE). The central/observer roles stay at their defaults: the firmware calls
+# ble_gattc_exchange_mtu(), which needs the GATT client code to be compiled in.
 CONFIG_BT_ENABLED=y
 CONFIG_BT_NIMBLE_ENABLED=y
-CONFIG_BT_NIMBLE_ROLE_CENTRAL=n
-CONFIG_BT_NIMBLE_ROLE_OBSERVER=n
 CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU=247
