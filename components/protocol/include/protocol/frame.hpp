@@ -37,29 +37,29 @@ constexpr std::size_t kSampleBytes = 12;
 constexpr std::size_t kCrcBytes = 2;
 constexpr std::size_t kFrameOverhead = kHeaderBytes + kCrcBytes;
 constexpr std::size_t kMaxSamplesPerFrame = 16;
-constexpr std::size_t kMaxFrameBytes = kFrameOverhead + kMaxSamplesPerFrame * kSampleBytes;
+constexpr std::size_t kMaxFrameBytes =
+    kFrameOverhead + kMaxSamplesPerFrame * kSampleBytes;
 
 /**
  * @brief How many samples fit in one notification.
  * @param payloadBytes Usable ATT payload (negotiated MTU - 3).
  * @return 0 if not even one sample fits, otherwise at most kMaxSamplesPerFrame.
  */
-constexpr std::size_t maxSamplesForPayload(std::size_t payloadBytes)
-{
-    if (payloadBytes < kFrameOverhead + kSampleBytes) {
-        return 0;
-    }
-    const std::size_t n = (payloadBytes - kFrameOverhead) / kSampleBytes;
-    return n < kMaxSamplesPerFrame ? n : kMaxSamplesPerFrame;
+constexpr std::size_t maxSamplesForPayload(std::size_t payloadBytes) {
+  if (payloadBytes < kFrameOverhead + kSampleBytes) {
+    return 0;
+  }
+  const std::size_t n = (payloadBytes - kFrameOverhead) / kSampleBytes;
+  return n < kMaxSamplesPerFrame ? n : kMaxSamplesPerFrame;
 }
 
 /** @brief Decoded frame header. */
 struct FrameHeader {
-    std::uint8_t version = 0;
-    FrameType type = FrameType::Samples;
-    std::uint16_t frameSeq = 0;
-    std::uint32_t firstSampleSeq = 0;
-    std::uint8_t count = 0;
+  std::uint8_t version = 0;
+  FrameType type = FrameType::Samples;
+  std::uint16_t frameSeq = 0;
+  std::uint32_t firstSampleSeq = 0;
+  std::uint8_t count = 0;
 };
 
 /**
@@ -74,18 +74,19 @@ struct FrameHeader {
  * @return Number of bytes written, or 0 if the input is empty, too long,
  *         not consecutive, or @p out is too small.
  */
-std::size_t encodeSamplesFrame(std::span<std::uint8_t> out, std::uint16_t frameSeq,
+std::size_t encodeSamplesFrame(std::span<std::uint8_t> out,
+                               std::uint16_t frameSeq,
                                std::span<const acquisition::Sample> samples);
 
 /** @brief Result of decodeSamplesFrame(). */
 enum class DecodeStatus : std::uint8_t {
-    Ok,
-    TooShort,       ///< Fewer bytes than header + CRC.
-    BadCrc,         ///< Checksum mismatch.
-    BadVersion,     ///< Unsupported protocol version.
-    BadType,        ///< Unknown frame type.
-    BadLength,      ///< count disagrees with the frame size or exceeds the maximum.
-    OutputTooSmall, ///< @p out cannot hold `count` samples.
+  Ok,
+  TooShort,   ///< Fewer bytes than header + CRC.
+  BadCrc,     ///< Checksum mismatch.
+  BadVersion, ///< Unsupported protocol version.
+  BadType,    ///< Unknown frame type.
+  BadLength,  ///< count disagrees with the frame size or exceeds the maximum.
+  OutputTooSmall, ///< @p out cannot hold `count` samples.
 };
 
 /**
@@ -94,20 +95,22 @@ enum class DecodeStatus : std::uint8_t {
  * @param hdr  Receives the header (valid when Ok).
  * @param out  Receives `hdr.count` samples with `seq` reconstructed.
  */
-DecodeStatus decodeSamplesFrame(std::span<const std::uint8_t> in, FrameHeader &hdr,
+DecodeStatus decodeSamplesFrame(std::span<const std::uint8_t> in,
+                                FrameHeader &hdr,
                                 std::span<acquisition::Sample> out);
 
 /** @brief Static device description, readable once after connecting. */
 struct DeviceInfo {
-    std::uint16_t odrHz = 0;     ///< Sample rate of the stream.
-    float accelMgPerLsb = 0.0F;  ///< Accelerometer scale.
-    float gyroMdpsPerLsb = 0.0F; ///< Gyroscope scale.
+  std::uint16_t odrHz = 0;     ///< Sample rate of the stream.
+  float accelMgPerLsb = 0.0F;  ///< Accelerometer scale.
+  float gyroMdpsPerLsb = 0.0F; ///< Gyroscope scale.
 };
 
 constexpr std::size_t kInfoBytes = 12;
 
 /**
- * @brief Serialise DeviceInfo: version u8, reserved u8, odr_hz u16, accel f32, gyro f32.
+ * @brief Serialise DeviceInfo: version u8, reserved u8, odr_hz u16, accel f32,
+ * gyro f32.
  * @return kInfoBytes, or 0 if @p out is too small.
  */
 std::size_t encodeInfo(std::span<std::uint8_t> out, const DeviceInfo &info);
@@ -117,8 +120,8 @@ bool decodeInfo(std::span<const std::uint8_t> in, DeviceInfo &info);
 
 /** @brief Commands written to the control characteristic (one byte). */
 enum class Command : std::uint8_t {
-    Start = 0x01, ///< Begin streaming samples.
-    Stop = 0x02,  ///< Stop streaming.
+  Start = 0x01, ///< Begin streaming samples.
+  Stop = 0x02,  ///< Stop streaming.
 };
 
 /** @brief Parse a control write. @return the command, or nothing if invalid. */

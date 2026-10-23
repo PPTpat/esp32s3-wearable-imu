@@ -19,19 +19,23 @@ constexpr std::uint8_t kWhoAmIValue = 0x6C;
 
 /** @brief Register addresses. */
 namespace reg {
-constexpr std::uint8_t FIFO_CTRL1 = 0x07;        ///< Watermark threshold, bits [7:0].
-constexpr std::uint8_t FIFO_CTRL2 = 0x08;        ///< Watermark bit 8, FIFO options.
-constexpr std::uint8_t FIFO_CTRL3 = 0x09;        ///< Batch data rates (gyro, accel).
-constexpr std::uint8_t FIFO_CTRL4 = 0x0A;        ///< FIFO mode, timestamp/temperature batching.
-constexpr std::uint8_t INT1_CTRL = 0x0D;         ///< INT1 pin routing.
-constexpr std::uint8_t WHO_AM_I = 0x0F;          ///< Device ID.
-constexpr std::uint8_t CTRL1_XL = 0x10;          ///< Accelerometer ODR and full scale.
-constexpr std::uint8_t CTRL2_G = 0x11;           ///< Gyroscope ODR and full scale.
-constexpr std::uint8_t CTRL3_C = 0x12;           ///< Reset, BDU, address auto-increment.
-constexpr std::uint8_t FIFO_STATUS1 = 0x3A;      ///< Unread words, bits [7:0].
-constexpr std::uint8_t FIFO_STATUS2 = 0x3B;      ///< FIFO flags, unread words bits [9:8].
-constexpr std::uint8_t FIFO_DATA_OUT_TAG = 0x78; ///< Tag of the oldest FIFO word.
-constexpr std::uint8_t FIFO_DATA_OUT_X_L = 0x79; ///< First data byte of the oldest FIFO word.
+constexpr std::uint8_t FIFO_CTRL1 = 0x07; ///< Watermark threshold, bits [7:0].
+constexpr std::uint8_t FIFO_CTRL2 = 0x08; ///< Watermark bit 8, FIFO options.
+constexpr std::uint8_t FIFO_CTRL3 = 0x09; ///< Batch data rates (gyro, accel).
+constexpr std::uint8_t FIFO_CTRL4 =
+    0x0A; ///< FIFO mode, timestamp/temperature batching.
+constexpr std::uint8_t INT1_CTRL = 0x0D; ///< INT1 pin routing.
+constexpr std::uint8_t WHO_AM_I = 0x0F;  ///< Device ID.
+constexpr std::uint8_t CTRL1_XL = 0x10;  ///< Accelerometer ODR and full scale.
+constexpr std::uint8_t CTRL2_G = 0x11;   ///< Gyroscope ODR and full scale.
+constexpr std::uint8_t CTRL3_C = 0x12; ///< Reset, BDU, address auto-increment.
+constexpr std::uint8_t FIFO_STATUS1 = 0x3A; ///< Unread words, bits [7:0].
+constexpr std::uint8_t FIFO_STATUS2 =
+    0x3B; ///< FIFO flags, unread words bits [9:8].
+constexpr std::uint8_t FIFO_DATA_OUT_TAG =
+    0x78; ///< Tag of the oldest FIFO word.
+constexpr std::uint8_t FIFO_DATA_OUT_X_L =
+    0x79; ///< First data byte of the oldest FIFO word.
 } // namespace reg
 
 /** @brief CTRL3_C bits. */
@@ -61,7 +65,8 @@ namespace fifo_ctrl2 {
 constexpr std::uint8_t WTM8 = 1U << 0;
 } // namespace fifo_ctrl2
 
-/** @brief FIFO_CTRL4 FIFO_MODE field value: continuous (overwrites oldest data). */
+/** @brief FIFO_CTRL4 FIFO_MODE field value: continuous (overwrites oldest
+ * data). */
 constexpr std::uint8_t kFifoModeContinuous = 0x06;
 
 } // namespace lsm6dsox

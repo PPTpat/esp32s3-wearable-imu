@@ -16,9 +16,9 @@ namespace acquisition {
  * Time of a sample is `seq / ODR` until hardware timestamps are added.
  */
 struct Sample {
-    std::uint32_t seq = 0;
-    std::array<std::int16_t, 3> accel{};
-    std::array<std::int16_t, 3> gyro{};
+  std::uint32_t seq = 0;
+  std::array<std::int16_t, 3> accel{};
+  std::array<std::int16_t, 3> gyro{};
 };
 
 } // namespace acquisition

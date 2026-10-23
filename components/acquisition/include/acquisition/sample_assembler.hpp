@@ -20,27 +20,27 @@ namespace acquisition {
  * unpaired(). Temperature, timestamp and unknown tags are ignored.
  */
 class SampleAssembler {
-  public:
-    /**
-     * @brief Feed one FIFO word.
-     * @param word FIFO word read from the sensor.
-     * @param[out] out Completed sample, valid only when true is returned.
-     * @return true if @p out holds a new sample.
-     */
-    bool push(const lsm6dsox::FifoWord &word, Sample &out);
+public:
+  /**
+   * @brief Feed one FIFO word.
+   * @param word FIFO word read from the sensor.
+   * @param[out] out Completed sample, valid only when true is returned.
+   * @return true if @p out holds a new sample.
+   */
+  bool push(const lsm6dsox::FifoWord &word, Sample &out);
 
-    /** @brief Number of words that were overwritten before being paired. */
-    std::uint32_t unpaired() const { return unpaired_; }
+  /** @brief Number of words that were overwritten before being paired. */
+  std::uint32_t unpaired() const { return unpaired_; }
 
-    /** @brief Drop partial data (use after a FIFO overrun or reconfiguration). */
-    void reset();
+  /** @brief Drop partial data (use after a FIFO overrun or reconfiguration). */
+  void reset();
 
-  private:
-    Sample pending_{};
-    bool hasAccel_ = false;
-    bool hasGyro_ = false;
-    std::uint32_t nextSeq_ = 0;
-    std::uint32_t unpaired_ = 0;
+private:
+  Sample pending_{};
+  bool hasAccel_ = false;
+  bool hasGyro_ = false;
+  std::uint32_t nextSeq_ = 0;
+  std::uint32_t unpaired_ = 0;
 };
 
 } // namespace acquisition
