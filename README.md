@@ -1,6 +1,6 @@
 # esp32s3-wearable-imu
 
-![CI](https://github.com/YOUR_GITHUB_USER/esp32s3-wearable-imu/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/PPTpat/esp32s3-wearable-imu/actions/workflows/ci.yml/badge.svg)
 
 Firmware for a wearable motion sensor built on the **ESP32-S3** and the **LSM6DSOX** 6-axis IMU, streaming data over **BLE** to a PC or phone.
 Written in C++20 on ESP-IDF with a layered architecture: all logic that does not touch hardware is unit-tested on a host machine.
@@ -36,6 +36,7 @@ flowchart LR
 | `util` | Lock-free SPSC ring buffer | no (host-tested) |
 | `acquisition` | FIFO draining task (polled or INT1-driven), gyro/accel pairing | ISR and task only |
 | `protocol` | CRC-16, frame and info encoding, commands, UUIDs | no (host-tested) |
+| `dsp` | Madgwick orientation filter, step counter, fall detector | no (host-tested) |
 | `ble_service` | NimBLE GATT server and streaming task | yes |
 
 ## Status
@@ -47,7 +48,7 @@ flowchart LR
 | FIFO acquisition, INT1 interrupt mode | yes | no: INT1 did not trigger on my board, so it stays optional |
 | BLE streaming and frame protocol | yes | yes |
 | Python logger (CSV export, loss counters) | yes | yes |
-| DSP: orientation, steps, fall detection | planned | - |
+| DSP: orientation, steps, fall detection | yes (host-tested on synthetic signals) | no: not yet tuned or run on real recordings |
 | Power management, offline logging, OTA | planned | - |
 
 ## Hardware
@@ -100,6 +101,16 @@ python tools/ble_logger.py --duration 30 --csv data/raw/session.csv
 
 The logger connects to `ESP32S3-IMU`, starts the stream, reports sample rate, lost frames and lost samples, and writes converted data (g, dps) to CSV.
 
+## Replaying a recording through the DSP
+
+```bash
+cmake --build test/host/build --target replay_csv
+./test/host/build/replay_csv data/raw/session.csv --events
+```
+
+Prints the step count, fall events and final orientation for a CSV recorded with `ble_logger.py`.
+See [docs/dsp.md](docs/dsp.md) for the algorithms, parameters and known limitations.
+
 ## BLE protocol in short
 
 One GATT service with three characteristics: **Data** (notify, sample frames), **Control** (write, start/stop) and **Info** (read, sample rate and scales).
@@ -110,11 +121,11 @@ Full specification: [docs/ble_protocol.md](docs/ble_protocol.md).
 ## Repository layout
 
 ```
-components/   hal_port, lsm6dsox, util, acquisition, protocol, ble_service
+components/   hal_port, lsm6dsox, util, acquisition, protocol, ble_service, dsp
 main/         application entry point and Kconfig options
 test/         host unit tests and mocks
 tools/        Python BLE logger and protocol decoder
-docs/         protocol, hardware notes, architecture decision records, roadmap
+docs/         protocol, DSP notes, hardware notes, architecture decision records, roadmap
 ```
 
 ## Design decisions

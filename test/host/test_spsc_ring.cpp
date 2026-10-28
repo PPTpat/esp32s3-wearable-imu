@@ -53,6 +53,9 @@ static void test_two_threads_preserve_order() {
     for (std::uint32_t i = 0; i < kCount;) {
       if (q.push(i)) {
         ++i;
+      } else {
+        std::this_thread::yield(); // queue full: let the consumer run (matters
+                                   // on one core)
       }
     }
   });
@@ -64,6 +67,8 @@ static void test_two_threads_preserve_order() {
     if (q.pop(v)) {
       ordered = ordered && (v == expected);
       ++expected;
+    } else {
+      std::this_thread::yield(); // queue empty: let the producer run
     }
   }
   producer.join();
