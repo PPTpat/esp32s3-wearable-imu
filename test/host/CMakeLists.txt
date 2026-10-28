@@ -21,6 +21,7 @@ set(IMU_INC ${ROOT}/components/lsm6dsox/include)
 set(ACQ_INC ${ROOT}/components/acquisition/include)
 set(UTIL_INC ${ROOT}/components/util/include)
 set(PROTO_INC ${ROOT}/components/protocol/include)
+set(DSP_INC ${ROOT}/components/dsp/include)
 set(MOCK_INC ${ROOT}/test/mocks)
 
 # --- HAL bus mock ---
@@ -62,6 +63,26 @@ add_executable(test_frame
 target_include_directories(test_frame PRIVATE ${PROTO_INC} ${ACQ_INC})
 target_link_libraries(test_frame PRIVATE unity)
 
+# --- DSP library (shared by the DSP tests and the replay tool) ---
+add_library(dsp_host STATIC
+    ${ROOT}/components/dsp/src/madgwick.cpp
+    ${ROOT}/components/dsp/src/step_counter.cpp
+    ${ROOT}/components/dsp/src/fall_detector.cpp)
+target_include_directories(dsp_host PUBLIC ${DSP_INC})
+
+add_executable(test_madgwick test_madgwick.cpp)
+target_link_libraries(test_madgwick PRIVATE dsp_host unity)
+
+add_executable(test_step_counter test_step_counter.cpp)
+target_link_libraries(test_step_counter PRIVATE dsp_host unity)
+
+add_executable(test_fall_detector test_fall_detector.cpp)
+target_link_libraries(test_fall_detector PRIVATE dsp_host unity)
+
+# --- Replay tool: runs a recorded CSV through the DSP (not a test) ---
+add_executable(replay_csv replay_csv.cpp)
+target_link_libraries(replay_csv PRIVATE dsp_host)
+
 enable_testing()
 add_test(NAME bus_mock COMMAND test_bus_mock)
 add_test(NAME lsm6dsox COMMAND test_lsm6dsox)
@@ -69,3 +90,6 @@ add_test(NAME spsc_ring COMMAND test_spsc_ring)
 add_test(NAME sample_assembler COMMAND test_sample_assembler)
 add_test(NAME crc16 COMMAND test_crc16)
 add_test(NAME frame COMMAND test_frame)
+add_test(NAME madgwick COMMAND test_madgwick)
+add_test(NAME step_counter COMMAND test_step_counter)
+add_test(NAME fall_detector COMMAND test_fall_detector)
